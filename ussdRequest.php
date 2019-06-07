@@ -1,707 +1,610 @@
 <?php
-//1. Ensure ths code runs only after a POST from AT
-if(!empty($_POST) && !empty($_POST['phoneNumber'])){
-	require_once('connection.php');
-	require_once('AfricasTalkingGateway.php');
-	require_once('config.php');
+/**
+ * Created by PhpStorm.
+ * User: CollinsJumah
+ * Date: 4/13/2019
+ * Time: 18:57
+ */
 
-	//2. receive the POST from AT
-	$sessionId     =$_POST['sessionId'];
-	$serviceCode   =$_POST['serviceCode'];
-	$phoneNumber   =$_POST['phoneNumber'];
-	$text          =$_POST['text'];
 
-	//3. Explode the text to get the value of the latest interaction - think 1*1
-	$textArray=explode('*', $text);
-	$userResponse=trim(end($textArray));
+//connections required
+require_once ('AfricasTalkingGateway.php');
+require_once ('config.php');
+require_once ('connection.php');
 
-	//4. Set the default level of the user
-	$level=0;
+//receive the POSTs from AfricaStalking
+$sessionId=$_POST['sessionId'];
+$serviceCode=$_POST['serviceCode'];
+$phoneNumber=$_POST['phoneNumber'];
+$text=$_POST['text'];
 
-	//5. Check the level of the user from the DB and retain default level if none is found for this session
-	$sql = "select level from session_levels where session_id ='".$sessionId." '";
-	$levelQuery = $db->query($sql);
-	if($result = $levelQuery->fetch_assoc()) {
-		$level = $result['level'];
-	}
+//explored text to get valu of the latest interaction using textExplored function
+$textArray=explode('*', $text);
+$userResponse=trim(end($textArray));
 
-	//6. Create an account and ask questions later
-	$sql6 = "SELECT * FROM students WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-	$acQuery=$db->query($sql6);
-	if(!$acAvailable=$acQuery->fetch_assoc()){
-		$sql1A = "INSERT INTO parents (`phoneNumber`) VALUES('".$phoneNumber."')";
-		$db->query($sql1A);
-	}
+//Set user level to zero(default level of user)
+$level=0;
 
-	//7. Check if the user is in the db
-	$sql7 = "SELECT * FROM students WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-	$userQuery=$db->query($sql7);
-	$userAvailable=$userQuery->fetch_assoc();
+//check the level of user from the db and retain to zero if none is found
+$sqlLv = "select level from session_levels where session_id ='".$sessionId." '";
+$levelQuery = $conn->query($sqlLv);
+if($resultLv = $levelQuery->fetch_assoc()) {
+    $level = $resultLv['level'];
+}
 
-	//8. Check if the user is available (yes)->Serve the menu; (no)->Register the user
-	if($userAvailable && $userAvailable['admission']!=NULL && $userAvailable['name']!=NULL){
-		//9. Serve the Services Menu (if the user is fully registered,
-		//level 0 and 1 serve the basic menus, while the rest allow for financial transactions)
-		if($level==0 || $level==1){
-			//9a. Check that the user actually typed something, else demote level and start at home
-			switch ($userResponse) {
-				case "":
-					if($level==0){
-						//9b. Graduate user to next level & Serve Main Menu
-						$sql9b = "INSERT INTO `session_levels`(`session_id`,`phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."',1)";
-						$db->query($sql9b);
 
-						//Serve our services menu
-						$response = "CON Welcome to KERERI GIRLS' " .'<b>'.$userAvailable['name'].'</b>'. ". Choose a service.\n";
-						$response .= " 1. Please call me.\n";
-						$response .= " 2. Student details\n";
-						$response .= " 3. Exam Results\n";
-						$response .= " 4. Fee balance\n";
-						$response .= " 5. Exit";
+//=======================check if user/subscriber is in the database====================================================
 
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				case "0":
-					if($level==0){
-						//9b. Graduate user to next level & Serve Main Menu
-						$sql9b = "INSERT INTO `session_levels`(`session_id`,`phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."',1)";
-						$db->query($sql9b);
+$sqlCheckUser="SELECT * FROM parents WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
+//$resultsCheckUser=mysqli_query($conn,$sqlCheckUser);
+//$userAvailability=mysqli_fetch_assoc($resultsCheckUser);
+$userQuery=$conn->query($sqlCheckUser);
+$userAvailability=$userQuery->fetch_assoc();
 
-						//Serve our services menu
-						$response = "CON Welcome to KERERI GIRLS', " . $userAvailable['name']  . ". Choose a service.\n";
-						$response .= " 1. Please call me.\n";
-						$response .= " 2. Student details\n";
-						$response .= " 3. Exam Results\n";
-						$response .= " 4. Fee balance\n";
-						$response .= " 5. Exit\n";
 
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				case "1":
-					if($level==1){
-						//9d. Call the user and bridge to a sales person
-						$response = "END Please wait while we place your call.\n";
+//if the user(parent) is available, serve the menu,, else prompt for registration
 
-						//Make a call
-						$from="+254790366848"; $to=$phoneNumber;
-						// Create a new instance of our awesome gateway class
-						$gateway = new AfricasTalkingGateway($username, $apikey);
-						try { $gateway->call($from, $to); }
-						catch ( AfricasTalkingGatewayException $e ){echo "Encountered an error when calling: ".$e->getMessage();}
+if($userAvailability && $userAvailability['name'] !=NULL && $userAvailability['admission'] !=NULL){
+//    set level to zero
+    if($level==0 || $level==1){
+        switch ($userResponse){
+            case "":
+                if($level==0){
+                    //             update user level and set to 1 and display the menu
+                    $sqluserLvl="INSERT INTO `session_levels`(`session_id`,`phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."',1)";
+                    $resultsUserLvl=mysqli_query($conn,$sqluserLvl);
+                    //   serve/ display the menu
+                    $response = "CON Welcome to KERERI GIRLS " . $userAvailability['name'] . ". Choose a service.\n";
+                    $response .= " 1. Register.\n";
+                    $response .= " 2. Student details\n";
+                    $response .= " 3. Exam Results\n";
+                    $response .= " 4. Fee balance\n";
+                    $response .= " 5. Fee Structure\n";
+                    $response .= " 6. Subscribe for updates\n";
+                    $response .= " 7. Exit";
 
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				case "2":
-					if($level==1){
-						//9e. Ask how much and Launch the Mpesa Checkout to the user
-						$response = "END <strong class='text-center text-primary'>STUDENT INFORMATION:</strong>\n";
-						$sql3="SELECT * FROM students WHERE phoneNumber='$phoneNumber'";
-						$result3=mysqli_query($db,$sql3);
-						while($row3=mysqli_fetch_array($result3)){
-							$name3=$row3['name'];
-							$admission3=$row3['admission'];
-							$gender3=$row3['gender'];
-							$form=$row3['form'];
-							$county=$row3['city'];
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
 
-						}
-						//display student information
-//						$response .= "<img src='../images/chukaUniversity.png' height='100' width='100' class='img-responsive center-block' alt='logo'>\n";
-						$response .= "<u style='color: #23bcff'>KERERI GIRLS HIGH SCHOOL.</u>\n";
-						$response .= "<b>Name:</b> ".$name3."\n";
-						$response .= "<b>Admission:</b> ".$admission3."\n";
-						$response .= "<b>Gender:</b> ".$gender3."\n";
-						$response .= "<b>Class/Form:</b> ".$form."\n";
-						$response .="<b>County:</b> ".$county."\n";
+            case "0":
+                if($level==0){
+//                    update user to the next level
+                    $sqluserLvl1="INSERT INTO `session_levels`(`session_id`,`phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."',1)";
+                    $resultsUserLvl1=mysqli_query($conn,$sqluserLvl1);
+                    //   serve/ display the menu
+                    $response = "CON Welcome to KERERI GIRLS " . $userAvailability['name'] . ". Choose a service.\n";
+                    $response .= " 1. Register.\n";
+                    $response .= " 2. Student details\n";
+                    $response .= " 3. Exam Results\n";
+                    $response .= " 4. Fee balance\n";
+                    $response .= " 5. Fee Structure\n";
+                    $response .= " 6. Subscribe for updates\n";
+                    $response .= " 7. Exit";
 
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				case "3":
-					if($level==1){
-						//9e. Ask how much and Launch B2C to the user
-						$response = "CON  Please select the term you want to view results?\n";
-						$response .="1. Term one\n";
-						$response .="2. Term two\n";
-						$response .="3. Term three\n";
+                    header('Content-type: text/plain');
+                    echo $response;
 
-						if($level==1){
-                            $response = "END No results found for this term.\n";
-                            //Update sessions to level 10
-                            $sqlLvl10="UPDATE `session_levels` SET `level`=9 where `session_id`='".$sessionId."'";
-                            $db->query($sqlLvl10);
+                }
+                break;
+
+            case "1":
+                if($level==1){
+                    // Check if user's student is registered
+                    $sqlReg="SELECT * FROM students WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1 ";
+                    $resultsReg=mysqli_query($conn,$sqlReg);
+                    $checkReg=mysqli_num_rows($resultsReg);
+                    if($checkReg>0){
+                        $response = "CON You're already registered.\nPress 0 to main menu.";
+
+                        $sqlLevelDemote = "UPDATE `session_levels` SET `level`=0 where `session_id`='" . $sessionId . "'";
+                        $conn->query($sqlLevelDemote);
+
+                    }
+                    else{
+                        $response = "END Your student data not matching or does not exist\n";
+                    }
+
+                    // Print the response onto the page so that our gateway can read it
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            case "2":
+                if($level==1){
+//                    select students data from database and print out
+                    $response = "END STUDENT INFORMATION:\n";
+                    $sql3 = "SELECT * FROM students WHERE phoneNumber='$phoneNumber'";
+                    $result3 = mysqli_query($conn, $sql3);
+                    $checkData=mysqli_num_rows($result3);
+
+                      while ($row3 = mysqli_fetch_array($result3)) {
+                        $name3 = $row3['name'];
+                        $admission3 = $row3['admission'];
+                        $gender3 = $row3['gender'];
+                        $form = $row3['form'];
+                        $county = $row3['city'];
+
+                     }
+                     if($checkData==0){
+                         $response = "END Student information for provided phone number does not exist.Please visit the institution to update data.\n";
+                     }elseif ($checkData==1) {
+                         //display student information
+                         $response .= "KERERI GIRLS HIGH SCHOOL.\n";
+                         $response .= "Name: " . $name3 . "\n";
+                         $response .= "Admission: " . $admission3 . "\n";
+                         $response .= "Gender: " . $gender3 . "\n";
+                         $response .= "Class/Form:" . $form . "\n";
+                         $response .= "County:" . $county . "\n";
+                     }
+                    // Print the response onto the page so that our gateway can read it
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            case "3":
+                if($level==1){
+//                    ask user to select term ,, wanting to view results
+                    $response = "CON  Please select the term you want to view results?\n";
+                    $response .= "1. Term one\n";
+                    $response .= "2. Term two\n";
+                    $response .= "3. Term three\n";
+                    $response .= "4. General\n";
+
+//                    update session to another level
+                    $sqlLvl3="UPDATE `session_levels` SET `level`=8 where `session_id`='".$sessionId."'";
+                    $conn->query($sqlLvl3);
+                    // Print the response onto the page so that our gateway can read it
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            case "4":
+                if($level==1) {
+                    $nameF = $admissionF = $formF = $feePaid = $balance = $feeAmt = '';
+                    //Select data from fee status table
+
+                    $sqlFee = "SELECT * FROM feestatus WHERE phoneNumber LIKE '%" . $phoneNumber . "%' LIMIT 1";
+                    $resultFee = mysqli_query($conn, $sqlFee);
+
+                    //============check for availability in table feestatus=====================================
+                    $checkUser = mysqli_num_rows($resultFee);
+                    while ($rowFee = mysqli_fetch_array($resultFee)) {
+                        $nameF = $rowFee['name'];
+                        $admissionF = $rowFee['admission'];
+                        $formF = $rowFee['form'];
+                        $feeAmt = $rowFee['feeAmount'];
+                        $feePaid = $rowFee['feePaid'];
+                        $balance = $rowFee['balance'];
+
+                    }
+                    if ($checkUser == 0) {
+                        $response = "END Student Fee information does not exist. Please wait for data to be updated.\nIf this's a new contact phone,Kindly make update to school database.";
+//                        $response .= "Press 00 to main menu.";
+//
+//                        $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                        $conn->query($sqlLevelDemote);
+
+                    } elseif ($checkUser == 1) {
+                        //display student information
+                        $response = "END Student fee balance for the Year 2019 is:\n";
+                        $response .= "Name:  " . $nameF . "\n";
+                        $response .= "Admission:  " . $admissionF . "\n";
+                        $response .= "Class/Form:  " . $formF . "\n";
+                        $response .= "Fee Amount:  " . $feeAmt . "\n";
+                        $response .= "Paid:  " . $feePaid . "\n";
+                        $response .= "Balance:  " . $balance . "\n";
+//                        $response .= "Press 00 to main menu.";
+//
+//                        $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                        $conn->query($sqlLevelDemote);
+                    }
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            case "5":
+                if($level==1){
+//                    display fee structure for the school
+                    $sqlFeeStr = "SELECT * FROM feestructure ORDER BY id DESC";
+                    $resultFeeStr = mysqli_query($conn, $sqlFeeStr);
+
+                    //============check for availability in table fee structures and display============//
+                    $checkStr = mysqli_num_rows($resultFeeStr);
+                    while ($rowFeeStr = mysqli_fetch_array($resultFeeStr)) {
+                        $yearStr = $rowFeeStr['year'];
+                        $termOne = $rowFeeStr['termOne'];
+                        $trmTwo = $rowFeeStr['termTwo'];
+                        $termThree = $rowFeeStr['termThree'];
+                        $totalFee=$rowFeeStr['totalYear'];
+
+                    }
+                    //display student information
+                    $response = "END KERERI GIRLS HIGH SCHOOL FEE STRUCTURE:\n";
+                    $response .= "Academic Year:  " . $yearStr . "\n";
+                    $response .= "Term One:  Ksh." . $termOne . "\n";
+                    $response .= "Term Two:  Ksh." . $trmTwo . "\n";
+                    $response .= "Term Three:  Ksh." . $termThree . "\n";
+                    $response .= "Total Year:  Ksh." . $totalFee. "\n";
+//                    $response .= "Press 00 to main menu.";
+//
+//                    $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                    $conn->query($sqlLevelDemote);
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            case "6":
+                if($level==1){
+                    $response = "CON You are about to subscribe to the following services\n";
+                    $response .= " Opening dates\nClosing dates\nExam commencement\nExam release\nFee payment deadline\nStudent progress.\n";
+                    $response .= "Are you sure that you want to proceed\n";
+                    $response .= "1. YES\n";
+                    $response .= "2. NO\n";
+
+//                    update session level to 9 coz user is continuing to enter
+                    $sqlLvl10="UPDATE `session_levels` SET `level`=9 where `session_id`='".$sessionId."'";
+                    $conn->query($sqlLvl10);
+
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            case "7":
+                if($level==1){
+                    $response = "END Thank you for registering with KERERI GIRLS School-Parent USSD System.\n";
+
+                    // Print the response onto the page so that ussd gateway can read it
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+                break;
+
+            default:
+                if($level==1){
+                    // Return user to Main Menu & Demote user's level
+                    $response = "CON You have to choose a service.\n";
+                    $response .= "Press 0 to go back.\n";
+                    //demote
+                    $sqlLevelDemote = "UPDATE `session_levels` SET `level`=0 where `session_id`='" . $sessionId . "'";
+                    $conn->query($sqlLevelDemote);
+
+                    // Print the response onto the page so that our gateway can read it
+                    header('Content-type: text/plain');
+                    echo $response;
+                }
+
+        }
+
+    }
+    else{
+        switch ($level){
+            case 8:
+                switch ($userResponse){
+                    case "1":
+                      $sqlAd1="SELECT * FROM students WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
+                        $resultsAd1=mysqli_query($conn,$sqlAd1);
+                        $resultsCheckSt=mysqli_num_rows($resultsAd1);
+                        while ($rowAd1=mysqli_fetch_array($resultsAd1)){
+                            $Adm1 = $rowAd1['admission'];
+                            $phone=$rowAd1['phoneNumber'];
                         }
+                        if($resultsCheckSt==0){
+                            $response= "END Student data does not exist or match with your phone number\nContact system administrator for update.";
+//                            $response .= "Press 00 to main menu.";
+//
+//                            $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                            $conn->query($sqlLevelDemote);
+                        }elseif($resultsCheckSt==1) {
+
+
+                            $sqlResults = "SELECT * FROM results WHERE admission = '" . $Adm1 . "'";
+                            $results1 = mysqli_query($conn, $sqlResults);
+                            $Sname = $sAdmission = $eng = $kisw = $bio = $math = $chem = $total = $points = $grade = '';
+                            while ($rowR = mysqli_fetch_array($results1)) {
+                                $Sname = $rowR['student_name'];
+                                $sAdmission = $rowR['admission'];
+                                $eng = $rowR['eng'];
+                                $kisw = $rowR['ksw'];
+                                $math = $rowR['math'];
+                                $chem = $rowR['chem'];
+                                $bio = $rowR['bio'];
+                                $total = $rowR['total'];
+                                $points = $rowR['points'];
+                                $grade = $rowR['grade'];
+
+                            }
+                            //display student information
+                            $response = "END STUDENT RESULTS FOR TERM 1 ACADEMIC YEAR 2019: \n";
+                            $response .= "Student Name:  " . $Sname . "\n";
+                            $response .= "Admission No: " . $sAdmission . "\n";
+                            $response .= "English: " . $eng . "\n";
+                            $response .= "Kiswahili: " . $kisw . "\n";
+                            $response .= "Maths: " . $math . "\n";
+                            $response .= "Chemistry: " . $chem . "\n";
+                            $response .= "Biology: " . $bio . "\n";
+                            $response .= "Total Marks: " . $total . "\n";
+                            $response .= "Total Points: " . $points . "\n";
+                            $response .= "GRADE: " . $grade . "\n";
+//                            $response .= "Press 00 to main menu.";
+//
+//                            $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                            $conn->query($sqlLevelDemote);
+                        }
+                        // Print the response onto the page so that our gateway can read it
+                        header('Content-type: text/plain');
+                        echo $response;
+                        break;
+
+                    case "2":
+//                        display term 2 results
+                        $response = "CON Kindly wait for term two results to be uploaded\n";
+//                        $response .= "Press 0 to main menu.";
+//
+//                        $sqlLevelDemote = "UPDATE `session_levels` SET `level`=0 where `session_id`='" . $sessionId . "'";
+//                        $conn->query($sqlLevelDemote);
+                        // Print the response onto the page so that our gateway can read it
+                        header('Content-type: text/plain');
+                        echo $response;
+                        break;
+
+                    case "3":
+//                        display term three results
+                        $sqlAd1="SELECT * FROM students WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
+                        $resultsAd1=mysqli_query($conn,$sqlAd1);
+                        $resultsCheckSt=mysqli_num_rows($resultsAd1);
+                        while ($rowAd1=mysqli_fetch_array($resultsAd1)){
+                            $Adm1 = $rowAd1['admission'];
+                            $phone=$rowAd1['phoneNumber'];
+                        }
+                        if($resultsCheckSt==0){
+                            $response= "END Student data does not exist or match with your phone number\nContact system administrator for update.";
+//                            $response .= "Press 00 to main menu.";
+//
+//                            $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                            $conn->query($sqlLevelDemote);
+                        }elseif($resultsCheckSt==1) {
+
+
+                            $sqlResults = "SELECT * FROM results WHERE admission = '" . $Adm1 . "'";
+                            $results1 = mysqli_query($conn, $sqlResults);
+                            $Sname = $sAdmission = $eng = $kisw = $bio = $math = $chem = $total = $points = $grade = '';
+                            while ($rowR = mysqli_fetch_array($results1)) {
+                                $Sname = $rowR['student_name'];
+                                $sAdmission = $rowR['admission'];
+                                $eng = $rowR['eng'];
+                                $kisw = $rowR['ksw'];
+                                $math = $rowR['math'];
+                                $chem = $rowR['chem'];
+                                $bio = $rowR['bio'];
+                                $total = $rowR['total'];
+                                $points = $rowR['points'];
+                                $grade = $rowR['grade'];
+
+                            }
+                            //display student information
+                            $response = "END STUDENT RESULTS FOR TERM 3 ACADEMIC YEAR 2019: \n";
+                            $response .= "Student Name:  " . $Sname . "\n";
+                            $response .= "Admission No: " . $sAdmission . "\n";
+                            $response .= "English: " . $eng . "\n";
+                            $response .= "Kiswahili: " . $kisw . "\n";
+                            $response .= "Maths: " . $math . "\n";
+                            $response .= "Chemistry: " . $chem . "\n";
+                            $response .= "Biology: " . $bio . "\n";
+                            $response .= "Total Marks: " . $total . "\n";
+                            $response .= "Total Points: " . $points . "\n";
+                            $response .= "GRADE: " . $grade . "\n";
+//                            $response .= "Press 00 to main menu.";
+//
+//                            $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                            $conn->query($sqlLevelDemote);
+                        }
+                        // Print the response onto the page so that our gateway can read it
+                        header('Content-type: text/plain');
+                        echo $response;
+                        break;
+                    case "4":
+//                        display current results
+                        $sqlAd1="SELECT * FROM students WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
+                        $resultsAd1=mysqli_query($conn,$sqlAd1);
+                        $resultsCheckSt=mysqli_num_rows($resultsAd1);
+                        while ($rowAd1=mysqli_fetch_array($resultsAd1)){
+                            $Adm1 = $rowAd1['admission'];
+                            $phone=$rowAd1['phoneNumber'];
+                        }
+                        if($resultsCheckSt==0){
+                            $response= "END Student data does not exist or match with your phone number\nContact system administrator for update.";
+//                            $response .= "Press 00 to main menu.";
+//
+//                            $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                            $conn->query($sqlLevelDemote);
+                        }elseif($resultsCheckSt==1) {
+
+
+                            $sqlResults = "SELECT * FROM results WHERE admission = '" . $Adm1 . "'";
+                            $results1 = mysqli_query($conn, $sqlResults);
+                            $Sname = $sAdmission = $eng = $kisw = $bio = $math = $chem = $total = $points = $grade = '';
+                            while ($rowR = mysqli_fetch_array($results1)) {
+                                $Sname = $rowR['student_name'];
+                                $sAdmission = $rowR['admission'];
+                                $eng = $rowR['eng'];
+                                $kisw = $rowR['ksw'];
+                                $math = $rowR['math'];
+                                $chem = $rowR['chem'];
+                                $bio = $rowR['bio'];
+                                $total = $rowR['total'];
+                                $points = $rowR['points'];
+                                $grade = $rowR['grade'];
+
+                            }
+                            //display student information
+                            $response = "END CURRENT AVERAGE STUDENT RESULTS FOR ACADEMIC YEAR 2019: \n";
+                            $response .= "Student Name:  " . $Sname . "\n";
+                            $response .= "Admission No: " . $sAdmission . "\n";
+                            $response .= "English: " . $eng . "\n";
+                            $response .= "Kiswahili: " . $kisw . "\n";
+                            $response .= "Maths: " . $math . "\n";
+                            $response .= "Chemistry: " . $chem . "\n";
+                            $response .= "Biology: " . $bio . "\n";
+                            $response .= "Total Marks: " . $total . "\n";
+                            $response .= "Total Points: " . $points . "\n";
+                            $response .= "GRADE: " . $grade . "\n";
+//                            $response .= "Press 00 to main menu.";
+//
+//                            $sqlLevelDemote = "UPDATE `session_levels` SET `level`=00 where `session_id`='" . $sessionId . "'";
+//                            $conn->query($sqlLevelDemote);
+                        }
+                        // Print the response onto the page so that our gateway can read it
+                        header('Content-type: text/plain');
+                        echo $response;
+                        break;
+
+                    case 9:
+                        switch ($userResponse){
+                            case "1":
+                                $response="END Thank you for subscribing for KERERI GIRLS USSD services.";
+
+                                header('Content-type: text/plain');
+                                echo $response;
+                                break;
+
+                            case "2":
+                                $response="END You just cancelled Our services. No worry We will still update you.";
+
+                                header('Content-type: text/plain');
+                                echo $response;
+                                break;
+
+                            default:
+                                $response = "END Apologies, something went wrong. \n";
+                                // Print the response onto the page so that ussd gateway can read it
+                                header('Content-type: text/plain');
+                                echo $response;
+                                break;
+                        }
+                }
+        }
+    }
+
+
+}else{
+//    register user
+//    check user response is not empty
+    if($userResponse==""){
+        switch ($level){
+            case 0:
+                //            update user to the next level so you dont serve them the same menu
+                $sql10b = "INSERT INTO `session_levels`(`session_id`, `phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."', 1)";
+                $conn->query($sql10b);
+
+                //Insert the phoneNumber, since it comes with the first POST
+                $sql10c = "INSERT INTO parents(`phonenumber`) VALUES ('".$phoneNumber."')";
+                $conn->query($sql10c);
+
+                //Serve the menu request for name
+                $response = "CON Please enter your Name";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+
+            case 1:
+                // Request again for name - level has not changed...
+                $response = "CON Name not supposed to be empty. Please enter your name \n";
+
+                // Print the response onto the page so that gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+
+            case 2:
+                //10f. Request for city again --- level has not changed...
+                $response = "CON Admission not supposed to be empty. Please reply with Student Admission number\n";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+
+            default:
+                //10g. End the session
+                $response = "END Apologies, something went wrong. \n";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+
+        }
+    }else{
+//        if not empty, update user details
+        switch ($level) {
+            case 0:
+                //Graduate the user to the next level, so you dont serve them the same menu
+                $sqlb = "INSERT INTO `session_levels`(`session_id`, `phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."', 1)";
+                $conn->query($sqlb);
+
+                // Insert the phoneNumber, since it comes with the first POST
+                $sqlc = "INSERT INTO parents (`phonenumber`) VALUES ('".$phoneNumber."')";
+                $conn->query($sqlc);
+
+                //10d. Serve the menu request for name
+                $response = "CON Please enter your name";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+            case 1:
+                //Update Name, Request for city
+                $sql11b = "UPDATE parents SET `name`='".$userResponse."' WHERE `phonenumber` LIKE '%". $phoneNumber ."%'";
+                $conn->query($sql11b);
+
+                //graduate the user to the admission level
+                $sql11c = "UPDATE `session_levels` SET `level`=2 WHERE `session_id`='".$sessionId."'";
+                $conn->query($sql11c);
+
+                //request for the admission
+                $response = "CON Please enter your Student Admission";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+            case 2:
+                //11d. Update city
+                $sql11d = "UPDATE parents SET `admission`='".$userResponse."' WHERE `phonenumber` = '". $phoneNumber ."'";
+                $conn->query($sql11d);
+
+                //11e. Change level to 0
+                $sql11e = "INSERT INTO `session_levels`(`session_id`,`phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."',1)";
+                $conn->query($sql11e);
+
+                //11f. Serve the menu request for name
+                $response = "END You have been successfully registered to KERERI GIRLS. Dial *384*62316# to choose a service.";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+            default:
+                //11g. Request for city again
+                $response = "END Apologies, something went wrong... \n";
+
+                // Print the response onto the page so that our gateway can read it
+                header('Content-type: text/plain');
+                echo $response;
+                break;
+        }
+    }
 
-
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				case "4":
-					if($level==1){
-						//9g. Send Another User Some Money
-						$response = "CON You can only send 15 shillings.\n";
-						$response .= " Enter a valid phonenumber (like 0722122122)\n";
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-
-						//Update sessions to level 11
-						$sqlLvl11="UPDATE `session_levels` SET `level`=11 where `session_id`='".$sessionId."'";
-						$db->query($sqlLvl11);
-
-						//B2C
-						//Find account
-						$sql10a = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-						$balQuery=$db->query($sql10a);
-						$balAvailable=$balQuery->fetch_assoc();
-
-						if($balAvailable=$balQuery->fetch_assoc()){
-							// Reduce balance
-							$newBal = $balAvailable['balance'];
-							$newBal -= 15;
-
-							if($newBal > 0){
-								$gateway = new AfricasTalkingGateway($username, $apiKey);
-								$productName  = "Nerd Payments"; $currencyCode = "KES";
-								$recipient1   = array("phoneNumber" => $phoneNumber,"currencyCode" => "KES", "amount"=> 15,"metadata"=>array("name"=> "Clerk","reason" => "May Salary"));
-								$recipients  = array($recipient1);
-								try { $responses = $gateway->mobilePaymentB2CRequest($productName,$recipients); }
-								catch(AfricasTalkingGatewayException $e){ echo "Received error response: ".$e->getMessage(); }
-							}
-						}
-
-					}
-					break;
-				case "5":
-					if($level==1){
-						//Find account
-						$sql10a = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-						$balQuery=$db->query($sql10a);
-						$balAvailable=$balQuery->fetch_assoc();
-
-						if($balAvailable=$balQuery->fetch_assoc()){
-							// Reduce balance
-							$newBal = $balAvailable['balance'];
-							$newBal -= 5;
-
-							if($newBal > 0){
-								//9e. Send user airtime
-								$response = "END Please wait while we load your airtime account.\n";
-								// Print the response onto the page so that our gateway can read it
-								header('Content-type: text/plain');
-								echo $response;
-								// Search DB and the Send Airtime
-								$recipients = array( array("phoneNumber"=>"".$phoneNumber."", "amount"=>"KES 5") );
-								//JSON encode
-								$recipientStringFormat = json_encode($recipients);
-								//Create an instance of our gateway class, pass your credentials
-								$gateway = new AfricasTalkingGateway($username, $apikey);
-								try { $results = $gateway->sendAirtime($recipientStringFormat);}
-								catch(AfricasTalkingGatewayException $e){ echo $e->getMessage(); }
-							} else {
-								//Alert user of insufficient funds
-								$response = "END Sorry, you dont have sufficient\n";
-								$response .= " funds in your account \n";
-
-								// Print the response onto the page so that our gateway can read it
-								header('Content-type: text/plain');
-								echo $response;
-							}
-						}
-
-					}
-					break;
-				case "6":
-					if($level==1){
-						//9e. Ask how much and Launch the Mpesa Checkout to the user
-						$response = "CON How much are you depositing?\n";
-						$response .= " 4. 15 Shilling.\n";
-						$response .= " 5. 16 Shillings.\n";
-						$response .= " 6. 17 Shillings.\n";
-
-						//Update sessions to level 12
-						$sqlLvl12="UPDATE `session_levels` SET `level`=12 where `session_id`='".$sessionId."'";
-						$db->query($sqlLvl12);
-
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				case "7":
-					if($level==1){
-						// Find the user in the db
-						$sql7 = "SELECT * FROM microfinance WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-						$userQuery=$db->query($sql7);
-						$userAvailable=$userQuery->fetch_assoc();
-
-						// Find the account
-						$sql7a = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-						$BalQuery=$db->query($sql7a);
-						$newBal = 0.00; $newLoan = 0.00;
-
-						if($BalAvailable=$BalQuery->fetch_assoc()){
-							$newBal = $BalAvailable['balance'];
-							$newLoan = $BalAvailable['loan'];
-						}
-						//Respond with user Balance
-						$response = "END Your account statement.\n";
-						$response .= "Nerd Microfinance.\n";
-						$response .= "Name: ".$userAvailable['name']."\n";
-						$response .= "City: ".$userAvailable['city']."\n";
-						$response .= "Balance: ".$newBal."\n";
-						$response .= "Loan: ".$newLoan."\n";
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-					break;
-				default:
-					if($level==1){
-						// Return user to Main Menu & Demote user's level
-						$response = "CON You have to choose a service.\n";
-						$response .= "Press 0 to go back.\n";
-						//demote
-						$sqlLevelDemote="UPDATE `session_levels` SET `level`=0 where `session_id`='".$sessionId."'";
-						$db->query($sqlLevelDemote);
-
-						// Print the response onto the page so that our gateway can read it
-						header('Content-type: text/plain');
-						echo $response;
-					}
-			}
-		}else{
-			// Financial Services Delivery
-			switch ($level){
-				case 9:
-					//9a. Collect Deposit from user, update db
-					switch ($userResponse) {
-						case "1":
-							//End session
-							$response = "END Kindly wait 1 minute for the Checkout.\n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-
-							$amount=19;
-							//Create pending record in checkout to be cleared by cronjobs
-							$sql9aa = "INSERT INTO checkout (`status`,`amount`,`phoneNumber`) VALUES('pending','".$amount."','".$phoneNumber."')";
-							$db->query($sql9aa);
-							break;
-
-						case "2":
-							// End session
-							$response = "END Kindly wait 1 minute for the Checkout.\n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-
-							$amount=18;
-							//Create pending record in checkout to be cleared by cronjobs
-							$sql9aa = "INSERT INTO checkout (`status`,`amount`,`phoneNumber`) VALUES('pending','".$amount."','".$phoneNumber."')";
-							$db->query($sql9aa);
-							break;
-
-						case "3":
-							// End session
-							$response = "END Kindly wait 1 minute for the Checkout.\n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-
-							$amount=17;
-							//Create pending record in checkout to be cleared by cronjobs
-							$sql9aa = "INSERT INTO checkout (`status`,`amount`,`phoneNumber`) VALUES('pending','".$amount."','".$phoneNumber."')";
-							$db->query($sql9aa);
-							break;
-
-						default:
-							$response = "END Apologies, something went wrong... \n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-							break;
-					}
-					break;
-				case 10:
-					//Withdraw fund from account
-					switch ($userResponse) {
-						case "1":
-							//Find account
-							$sql10a = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-							$balQuery=$db->query($sql10a);
-							$balAvailable=$balQuery->fetch_assoc();
-
-							if($balAvailable=$balQuery->fetch_assoc()){
-								// Reduce balance
-								$newBal = $balAvailable['balance'];
-								$newBal -=15;
-							}
-
-							if($newBal > 0){
-
-								//Alert user of incoming Mpesa cash
-								$response = "END We are sending your withdrawal of\n";
-								$response .= " KES 15/- shortly... \n";
-
-								//Declare Params
-								$gateway = new AfricasTalkingGateway($username, $apikey);
-								$productName  = "Nerd Payments";
-								$currencyCode = "KES";
-								$recipient   = array("phoneNumber" => "".$phoneNumber."","currencyCode" => "KES","amount"=>15,"metadata"=>array("name"=>"Client","reason" => "Withdrawal"));
-								$recipients  = array($recipient);
-								//Send B2c
-								try {$responses = $gateway->mobilePaymentB2CRequest($productName, $recipients);}
-								catch(AfricasTalkingGatewayException $e){echo "Received error response: ".$e->getMessage();}
-							} else {
-								//Alert user of insufficient funds
-								$response = "END Sorry, you dont have sufficient\n";
-								$response .= " funds in your account \n";
-							}
-
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-							break;
-
-						case "2":
-							//Find account
-							$sql10b = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-							$balQuery=$db->query($sql10b);
-							$balAvailable=$balQuery->fetch_assoc();
-
-							if($balAvailable=$balQuery->fetch_assoc()){
-								// Reduce balance
-								$newBal = $balAvailable['balance'];
-								$newBal -= 16;
-							}
-
-							if($newBal > 0){
-								//Alert user of incoming Mpesa cash
-								$response = "END We are sending your withdrawal of\n";
-								$response .= " KES 16/- shortly... \n";
-
-								//Declare Params
-								$gateway = new AfricasTalkingGateway($username, $apikey);
-								$productName  = "Nerd Payments";
-								$currencyCode = "KES";
-								$recipient   = array("phoneNumber" => "".$phoneNumber."","currencyCode" => "KES","amount"=>16,"metadata"=>array("name"=>"Client","reason" => "Withdrawal"));
-								$recipients  = array($recipient);
-								//Send B2c
-								try {$responses = $gateway->mobilePaymentB2CRequest($productName, $recipients);}
-								catch(AfricasTalkingGatewayException $e){echo "Received error response: ".$e->getMessage();}
-								// Print the response onto the page so that our gateway can read it
-								header('Content-type: text/plain');
-								echo $response;
-							} else {
-								//Alert user of insufficient funds
-								$response = "END Sorry, you dont have sufficient\n";
-								$response .= " funds in your account \n";
-
-								// Print the response onto the page so that our gateway can read it
-								header('Content-type: text/plain');
-								echo $response;
-							}
-							break;
-
-						case "3":
-							//Find account
-							$sql10c = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-							$balQuery=$db->query($sql10c);
-							$balAvailable=$balQuery->fetch_assoc();
-
-							if($balAvailable=$balQuery->fetch_assoc()){
-								// Reduce balance
-								$newBal = $balAvailable['balance'];
-								$newBal -= 17;
-							}
-
-							if($newBal > 0){
-								//Alert user of incoming Mpesa cash
-								$response = "END We are sending your withdrawal of\n";
-								$response .= " KES 17/- shortly... \n";
-
-								//Declare Params
-								$gateway = new AfricasTalkingGateway($username, $apikey);
-								$productName  = "Nerd Payments";
-								$currencyCode = "KES";
-								$recipient   = array("phoneNumber" => "".$phoneNumber."","currencyCode" => "KES","amount"=>17,"metadata"=>array("name"=>"Client","reason" => "Withdrawal"));
-								$recipients  = array($recipient);
-								//Send B2c
-								try {$responses = $gateway->mobilePaymentB2CRequest($productName, $recipients);}
-								catch(AfricasTalkingGatewayException $e){echo "Received error response: ".$e->getMessage();}
-								// Print the response onto the page so that our gateway can read it
-								header('Content-type: text/plain');
-								echo $response;
-							} else {
-								//Alert user of insufficient funds
-								$response = "END Sorry, you dont have sufficient\n";
-								$response .= " funds in your account \n";
-								// Print the response onto the page so that our gateway can read it
-								header('Content-type: text/plain');
-								echo $response;
-							}
-							break;
-
-						default:
-							$response = "END Apologies, something went wrong... \n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-							break;
-					}
-					break;
-				case 11:
-					//11d. Send money to person described
-					$response = "END We are sending KES 15/- \n";
-					$response .= "to the loanee shortly. \n";
-
-					//Find and update Creditor
-					$sql11d = "SELECT * FROM account WHERE phoneNumber LIKE '%".$phoneNumber."%' LIMIT 1";
-					$balQuery=$db->query($sql11d);
-					$balAvailable=$balQuery->fetch_assoc();
-
-					if($balAvailable=$balQuery->fetch_assoc()){
-						// Reduce balance
-						$newBal = $balAvailable['balance'];
-						$newBal -=15;
-					}
-
-					//Send loan only if new balance is above 0
-					if($newBal > 0){
-
-						//Find and update Debtor
-						$sql11dd = "SELECT * FROM account WHERE phoneNumber LIKE '%".$userResponse."%' LIMIT 1";
-						$loanQuery=$db->query($sql11dd);
-
-						if($loanAvailable=$loanQuery->fetch_assoc()){
-							$newLoan = $loanAvailable['balance'];
-							$newLoan += 15;
-						}
-
-						// SMS New Balance
-						$code = '20880';
-						$recipients = $phoneNumber;
-						$message    = "We have sent 15/- to".$userResponse." If this is a wrong number the transaction will fail.
-		            				   Your new balance is ".$newBal.". Thank you.";
-						$gateway    = new AfricasTalkingGateway($username, $apikey);
-						try { $results = $gateway->sendMessage($recipients, $message, $code); }
-						catch ( AfricasTalkingGatewayException $e ) {echo "Encountered an error while sending: ".$e->getMessage(); }
-
-						// Update the DB
-						$sql11e = "UPDATE account SET `balance`='".$newBal."' WHERE `phonenumber` = '". $phoneNumber ."'";
-						$db->query($sql11e);
-
-						//11f. Change level to 0
-						$sql11f = "INSERT INTO account (`loan`,`phoneNumber`) VALUES('".$newLoan."','".$phoneNumber."',1)";
-						$db->query($sql11f);
-
-						//Declare Params
-						$gateway = new AfricasTalkingGateway($username, $apikey);
-						$productName  = "Nerd Payments";
-						$currencyCode = "KES";
-						$recipient   = array("phoneNumber" => "".$phoneNumber."","currencyCode" => "KES","amount"=>15,"metadata"=>array("name"=>"Client","reason" => "Withdrawal"));
-						$recipients  = array($recipient);
-						//Send B2c
-						try {$responses = $gateway->mobilePaymentB2CRequest($productName, $recipients);}
-						catch(AfricasTalkingGatewayException $e){echo "Received error response: ".$e->getMessage();}
-
-						//respond
-						$response = "END We have sent money to".$userResponse." \n";
-
-					} else {
-						//respond
-						$response = "END Sorry we could not send the money. \n";
-						$response .= "Your dont have enough money. \n";
-					}
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-				case 12:
-					//12. Pay loan
-					switch ($userResponse) {
-						case "4":
-							//End session
-							$response = "END Kindly wait 1 minute for the Checkout. You are repaying 15/-..\n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-
-							$amount=15;
-							//Create pending record in checkout to be cleared by cronjobs
-							$sql12a = "INSERT INTO checkout (`status`,`amount`,`phoneNumber`) VALUES('pending','".$amount."','".$phoneNumber."')";
-							$db->query($sql12a);
-							break;
-
-						case "5":
-							//End session
-							$response = "END Kindly wait 1 minute for the Checkout. You are repaying 16/-..\n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-
-							$amount=16;
-							//Create pending record in checkout to be cleared by cronjobs
-							$sql12a = "INSERT INTO checkout (`status`,`amount`,`phoneNumber`) VALUES('pending','".$amount."','".$phoneNumber."')";
-							$db->query($sql12a);
-							break;
-
-						case "6":
-							//End session
-							$response = "END Kindly wait 1 minute for the Checkout. You are repaying 17/-..\n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-
-							$amount=17;
-							//Create pending record in checkout to be cleared by cronjobs
-							$sql12a = "INSERT INTO checkout (`status`,`amount`,`phoneNumber`) VALUES('pending','".$amount."','".$phoneNumber."')";
-							$db->query($sql12a);
-							break;
-
-						default:
-							$response = "END Apologies, something went wrong... \n";
-							// Print the response onto the page so that our gateway can read it
-							header('Content-type: text/plain');
-							echo $response;
-							break;
-					}
-					break;
-				default:
-					//11g. Request for city again
-					$response = "END Apologies, something went wrong... \n";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-			}
-		}
-	} else{
-		//10. Check that user response is not empty
-		if($userResponse==""){
-			//10a. On receiving a Blank. Advise user to input correctly based on level
-			switch ($level) {
-				case 0:
-					//10b. Graduate the user to the next level, so you dont serve them the same menu
-					$sql10b = "INSERT INTO `session_levels`(`session_id`, `phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."', 1)";
-					$db->query($sql10b);
-
-					//10c. Insert the phoneNumber, since it comes with the first POST
-					$sql10c = "INSERT INTO microfinance(`phonenumber`) VALUES ('".$phoneNumber."')";
-					$db->query($sql10c);
-
-					//10d. Serve the menu request for name
-					$response = "CON Please enter your name";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-
-				case 1:
-					//10e. Request again for name - level has not changed...
-					$response = "CON Name not supposed to be empty. Please enter your name \n";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-
-				case 2:
-					//10f. Request for city again --- level has not changed...
-					$response = "CON City not supposed to be empty. Please reply with your city \n";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-
-				default:
-					//10g. End the session
-					$response = "END Apologies, something went wrong... \n";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-			}
-		}else{
-			//11. Update User table based on input to correct level
-			switch ($level) {
-				case 0:
-					//10b. Graduate the user to the next level, so you dont serve them the same menu
-					$sql10b = "INSERT INTO `session_levels`(`session_id`, `phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."', 1)";
-					$db->query($sql10b);
-
-					//10c. Insert the phoneNumber, since it comes with the first POST
-					$sql10c = "INSERT INTO microfinance (`phonenumber`) VALUES ('".$phoneNumber."')";
-					$db->query($sql10c);
-
-					//10d. Serve the menu request for name
-					$response = "CON Please enter your name";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-				case 1:
-					//11b. Update Name, Request for city
-					$sql11b = "UPDATE microfinance SET `name`='".$userResponse."' WHERE `phonenumber` LIKE '%". $phoneNumber ."%'";
-					$db->query($sql11b);
-
-					//11c. We graduate the user to the city level
-					$sql11c = "UPDATE `session_levels` SET `level`=2 WHERE `session_id`='".$sessionId."'";
-					$db->query($sql11c);
-
-					//We request for the city
-					$response = "CON Please enter your city";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-				case 2:
-					//11d. Update city
-					$sql11d = "UPDATE microfinance SET `city`='".$userResponse."' WHERE `phonenumber` = '". $phoneNumber ."'";
-					$db->query($sql11d);
-
-					//11e. Change level to 0
-					$sql11e = "INSERT INTO `session_levels`(`session_id`,`phoneNumber`,`level`) VALUES('".$sessionId."','".$phoneNumber."',1)";
-					$db->query($sql11e);
-
-					//11f. Serve the menu request for name
-					$response = "END You have been successfully registered. Dial *384*62316# to choose a service.";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-				default:
-					//11g. Request for city again
-					$response = "END Apologies, something went wrong... \n";
-
-					// Print the response onto the page so that our gateway can read it
-					header('Content-type: text/plain');
-					echo $response;
-					break;
-			}
-		}
-	}
 }
 ?>
